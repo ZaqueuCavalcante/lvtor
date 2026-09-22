@@ -1,0 +1,24 @@
+# syntax=docker/dockerfile:1
+
+# Build stage: compile the Vue + Vite app into static files
+FROM node:24-alpine AS build
+WORKDIR /app
+RUN npm install -g pnpm@12.5.1
+COPY Web/package.json Web/pnpm-lock.yaml ./
+RUN pnpm install --frozen-lockfile
+COPY Web/ ./
+RUN pnpm build
+
+# Runtime stage: serve the static files with nginx on Railway's $PORT
+FROM nginx:alpine
+ENV PORT=8080
+COPY <<'CONF' /etc/nginx/templates/default.conf.template
+server {
+  listen ${PORT};
+  root /usr/share/nginx/html;
+  location / {
+    try_files $uri $uri/ /index.html;
+  }
+}
+CONF
+COPY --from=build /app/dist /usr/share/nginx/html
